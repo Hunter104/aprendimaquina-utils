@@ -1,0 +1,6 @@
+datasets/
+*.csv
+build/
+reports/
+.venv/
+__pycache__
