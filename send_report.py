@@ -5,6 +5,8 @@ import pandas as pd
 import requests
 from sklearn.metrics import classification_report, confusion_matrix
 from typing import Optional
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 webhook_url = os.environ.get("WEBHOOK_URL")
 if webhook_url is None:
@@ -27,7 +29,19 @@ def send_report(
     matrix_index = pd.Index([f"Real {i}" for i in range(matrix.shape[0])])
     matrix_columns = pd.Index([f"Pred {i}" for i in range(matrix.shape[1])])
     matrix_df = pd.DataFrame(matrix, index=matrix_index, columns=matrix_columns)
-    matrix_md = matrix_df.to_markdown()
+
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(matrix_df, annot=True, fmt="d", cmap="Blues")
+    plt.title("Confusion Matrix")
+    plt.xlabel("Predicted")
+    plt.ylabel("Actual")
+    plt.tight_layout()
+    graph_buf = io.BytesIO()
+    plt.savefig(graph_buf, format="png")
+    plt.close()
+    graph_buf.seek(0)
+    graphs = graphs or []
+    graphs.append(graph_buf)
 
     report = f"""\
 # Training Report
@@ -35,9 +49,6 @@ def send_report(
 
 ## Classification Report
 {report_md}
-
-## Confusion Matrix
-{matrix_md}
 
 ## Observations
 {extra_info if extra_info else "No additional observations."}
