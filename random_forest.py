@@ -43,5 +43,6 @@ send_report(
     module_name=__name__,
     time_taken=time_taken,
     cv_results=random_search.cv_results_,
-    extra_info=random_search.best_params_
+    extra_info=random_search.best_params_,
+    model = best_model,
 )

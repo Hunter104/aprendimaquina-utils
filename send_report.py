@@ -7,6 +7,8 @@ from sklearn.metrics import classification_report, confusion_matrix
 import seaborn as sns
 import matplotlib.pyplot as plt
 from typing import Optional, List, Dict, Union, Tuple
+import pickle
+import bz2
 
 def generate_classification_markdown(y_true, y_pred) -> str:
     report_dict = classification_report(y_true, y_pred, output_dict=True)
@@ -29,6 +31,18 @@ def generate_confusion_matrix_plot(y_true, y_pred) -> io.BytesIO:
     buf = io.BytesIO()
     plt.savefig(buf, format="png")
     plt.close()
+    buf.seek(0)
+    return buf
+
+def pickle_model(model, compress: bool = True) -> io.BytesIO:
+    buf = io.BytesIO()
+    
+    if compress:
+        with bz2.BZ2File(buf, 'wb', compresslevel=9) as f:
+            pickle.dump(model, f)
+    else:
+        pickle.dump(model, buf)
+    
     buf.seek(0)
     return buf
 
@@ -66,7 +80,9 @@ def send_report(
     time_taken: float = None,
     cv_results: Optional[Dict] = None,
     graphs: Optional[List[io.BytesIO]] = None,
-    extra_info: Optional[Union[str, Dict]] = None
+    extra_info: Optional[Union[str, Dict]] = None,
+    model = None,
+    compress_model: bool = True
 ):
     webhook_url = os.environ.get("WEBHOOK_URL")
     if webhook_url is None:
@@ -119,6 +135,11 @@ def send_report(
         report_sections.append("## Additional Information")
         report_sections.append(extra_info_str)
     
+    if model is not None:
+        report_sections.append("## Model Details")
+        report_sections.append(f"Model type: {type(model).__name__}")
+        report_sections.append(f"Model pickle included: {module_name}_model{'_compressed' if compress_model else ''}.pkl")
+    
     report_text = "\n\n".join(report_sections)
     report_buf = io.BytesIO(report_text.encode("utf-8"))
     
@@ -126,3 +147,14 @@ def send_report(
     
     for i, graph in enumerate(all_graphs):
         send_file_to_webhook(webhook_url, f"{module_name}_graph_{i+1}.png", graph, "image/png")
+    
+    if model is not None:
+        extension = "pkl"
+        compression_info = "_compressed" if compress_model else ""
+        model_buf = pickle_model(model, compress=compress_model)
+        send_file_to_webhook(
+            webhook_url, 
+            f"{module_name}_model{compression_info}.{extension}", 
+            model_buf, 
+            "application/octet-stream"
+        )
