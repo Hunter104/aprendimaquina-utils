@@ -46,7 +46,6 @@ def format_time_duration(seconds: float) -> str:
             delta = timedelta(seconds=seconds)
             return humanize.precisedelta(delta, minimum_unit="seconds", format="%0.2f")
     except ImportError:
-        # Fallback if humanize is not available
         if seconds < 1:
             return f"{seconds * 1000:.2f} ms"
         elif seconds < 60:
@@ -110,11 +109,13 @@ def send_report(
     extra_info: Optional[Union[str, Dict]] = None,
     model = None,
     compress_model: bool = True,
-    pickle_protocol: int = 5
+    pickle_protocol: int = 5,
+    webhook_url: Optional[str] = None
 ):
-    webhook_url = os.environ.get("WEBHOOK_URL")
     if webhook_url is None:
-        raise ValueError("WEBHOOK_URL environment variable not set")
+        webhook_url = os.environ.get("WEBHOOK_URL")
+        if webhook_url is None:
+            raise ValueError("webhook_url parameter is required or WEBHOOK_URL environment variable must be set")
     
     all_graphs = [] if graphs is None else list(graphs)
     
