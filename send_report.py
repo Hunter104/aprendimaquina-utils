@@ -1,6 +1,5 @@
 import os
 import io
-import inspect
 import pandas as pd
 import requests
 import numpy as np
@@ -8,11 +7,6 @@ from sklearn.metrics import classification_report, confusion_matrix
 import seaborn as sns
 import matplotlib.pyplot as plt
 from typing import Optional, List, Dict, Union, Tuple
-
-def get_module_name():
-    frame = inspect.stack()[1]
-    module = inspect.getmodule(frame[0])
-    return os.path.splitext(os.path.basename(module.__file__))[0] if module and module.__file__ else "unknown"
 
 def generate_classification_markdown(y_true, y_pred) -> str:
     report_dict = classification_report(y_true, y_pred, output_dict=True)
@@ -38,9 +32,9 @@ def generate_confusion_matrix_plot(y_true, y_pred) -> io.BytesIO:
     buf.seek(0)
     return buf
 
-def send_file_to_webhook(webhook_url: str, filename: str, file_buffer: io.BytesIO, mime_type: str):
+def send_file_to_webhook(webhook_url: str, filename: str, file_buffer: io.BytesIO, mime_type: str, module_name: str = "Model Training Report"):
     file_buffer.seek(0)
-    requests.post(webhook_url, files={'file': (filename, file_buffer, mime_type)})
+    requests.post(webhook_url, files={'file': (filename, file_buffer, mime_type), 'username': module_name})
 
 def get_cv_results_summary(cv_results: Dict) -> Tuple[str, io.BytesIO]:
     results_df = pd.DataFrame(cv_results)
@@ -67,6 +61,7 @@ def get_cv_results_summary(cv_results: Dict) -> Tuple[str, io.BytesIO]:
     return cv_summary.to_markdown(), buf
 
 def send_report(
+    module_name: str,
     predictions: Optional[Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]] = None,
     time_taken: float = None,
     cv_results: Optional[Dict] = None,
@@ -77,7 +72,6 @@ def send_report(
     if webhook_url is None:
         raise ValueError("WEBHOOK_URL environment variable not set")
     
-    module_name = get_module_name()
     all_graphs = [] if graphs is None else list(graphs)
     
     classification_report_md = ""

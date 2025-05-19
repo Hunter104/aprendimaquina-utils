@@ -40,6 +40,7 @@ end_time = time.time()
 time_taken = end_time - start_time
 
 send_report(
+    module_name=__name__,
     time_taken=time_taken,
     cv_results=random_search.cv_results_,
     extra_info=random_search.best_params_
