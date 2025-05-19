@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 from typing import Optional, List, Dict, Union, Tuple
 import pickle
 import bz2
+import humanize
+from datetime import timedelta
 
 def generate_classification_markdown(y_true, y_pred) -> str:
     report_dict = classification_report(y_true, y_pred, output_dict=True)
@@ -34,14 +36,39 @@ def generate_confusion_matrix_plot(y_true, y_pred) -> io.BytesIO:
     buf.seek(0)
     return buf
 
-def pickle_model(model, compress: bool = True) -> io.BytesIO:
+def format_time_duration(seconds: float) -> str:
+    try:
+        if seconds < 1:
+            return f"{seconds * 1000:.2f} ms"
+        elif seconds < 60:
+            return f"{seconds:.2f} seconds"
+        else:
+            delta = timedelta(seconds=seconds)
+            return humanize.precisedelta(delta, minimum_unit="seconds", format="%0.2f")
+    except ImportError:
+        # Fallback if humanize is not available
+        if seconds < 1:
+            return f"{seconds * 1000:.2f} ms"
+        elif seconds < 60:
+            return f"{seconds:.2f} seconds"
+        elif seconds < 3600:
+            minutes = seconds // 60
+            remainder = seconds % 60
+            return f"{int(minutes)} min {remainder:.1f} sec"
+        else:
+            hours = seconds // 3600
+            minutes = (seconds % 3600) // 60
+            remainder = seconds % 60
+            return f"{int(hours)} hours {int(minutes)} min {remainder:.1f} sec"
+
+def pickle_model(model, compress: bool = True, protocol: int = 5) -> io.BytesIO:
     buf = io.BytesIO()
     
     if compress:
         with bz2.BZ2File(buf, 'wb', compresslevel=9) as f:
-            pickle.dump(model, f)
+            pickle.dump(model, f, protocol=protocol)
     else:
-        pickle.dump(model, buf)
+        pickle.dump(model, buf, protocol=protocol)
     
     buf.seek(0)
     return buf
@@ -77,12 +104,13 @@ def get_cv_results_summary(cv_results: Dict) -> Tuple[str, io.BytesIO]:
 def send_report(
     module_name: str,
     predictions: Optional[Union[np.ndarray, Tuple[np.ndarray, np.ndarray]]] = None,
-    time_taken: float = None,
+    time_taken: Optional[float] = None,
     cv_results: Optional[Dict] = None,
     graphs: Optional[List[io.BytesIO]] = None,
     extra_info: Optional[Union[str, Dict]] = None,
     model = None,
-    compress_model: bool = True
+    compress_model: bool = True,
+    pickle_protocol: int = 5
 ):
     webhook_url = os.environ.get("WEBHOOK_URL")
     if webhook_url is None:
@@ -120,7 +148,8 @@ def send_report(
     report_sections.append("# Training Report")
     
     if time_taken is not None:
-        report_sections.append(f"**Time taken:** {time_taken:.2f} s")
+        formatted_time = format_time_duration(time_taken)
+        report_sections.append(f"**Time taken:** {formatted_time}")
     
     if classification_report_md:
         report_sections.append("## Classification Report")
@@ -139,6 +168,8 @@ def send_report(
         report_sections.append("## Model Details")
         report_sections.append(f"Model type: {type(model).__name__}")
         report_sections.append(f"Model pickle included: {module_name}_model{'_compressed' if compress_model else ''}.pkl")
+        report_sections.append(f"Pickle protocol: {pickle_protocol}")
+        report_sections.append(f"Compression: {'enabled' if compress_model else 'disabled'}")
     
     report_text = "\n\n".join(report_sections)
     report_buf = io.BytesIO(report_text.encode("utf-8"))
@@ -151,7 +182,7 @@ def send_report(
     if model is not None:
         extension = "pkl"
         compression_info = "_compressed" if compress_model else ""
-        model_buf = pickle_model(model, compress=compress_model)
+        model_buf = pickle_model(model, compress=compress_model, protocol=pickle_protocol)
         send_file_to_webhook(
             webhook_url, 
             f"{module_name}_model{compression_info}.{extension}", 
