@@ -74,7 +74,11 @@ def pickle_model(model, compress: bool = True, protocol: int = 5) -> io.BytesIO:
 
 def send_file_to_webhook(webhook_url: str, filename: str, file_buffer: io.BytesIO, mime_type: str, module_name: str = "Model Training Report"):
     file_buffer.seek(0)
-    requests.post(webhook_url, files={'file': (filename, file_buffer, mime_type), 'username': module_name})
+    requests.post(
+        webhook_url,
+        data={"username": module_name},
+        files={'file': (filename, file_buffer, mime_type)}
+    )
 
 def get_cv_results_summary(cv_results: Dict) -> Tuple[str, io.BytesIO]:
     results_df = pd.DataFrame(cv_results)
