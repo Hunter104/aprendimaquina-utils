@@ -4,3 +4,5 @@ build/
 reports/
 .venv/
 __pycache__
+data/
+pyrightconfig.json
